@@ -1,0 +1,13 @@
+{
+  "name": "glsl-shadertoy-viewer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local Shadertoy-like GLSL viewer with live reload",
+  "type": "module",
+  "scripts": {
+    "start": "node viewer.js shader.glsl"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.3"
+  }
+}

@@ -28,9 +28,17 @@ void main() {
 }
 `;
 
+/** Strip BOM and every #version line so the host’s single #version stays first. */
+function stripUserForEmbed(userGlsl) {
+  return userGlsl
+    .replace(/^\uFEFF/, "")
+    .replace(/^[ \t]*#version[ \t]+[^\r\n]*/gim, "")
+    .trim();
+}
+
 /** Shadertoy-style preamble + user file (must define mainImage). */
 function buildFragmentSource(userGlsl) {
-  let body = userGlsl.replace(/^\s*#version\s+[^\n]*\n?/gim, "").trim();
+  let body = stripUserForEmbed(userGlsl);
   return `#version 300 es
 precision highp float;
 precision highp int;
@@ -53,6 +61,8 @@ uniform float iChannelTime[4];
 
 out vec4 fragColor;
 
+/* User snippets can guard local stubs with #if !defined(VIEWER_GLSL_EMBED). */
+#define VIEWER_GLSL_EMBED 1
 ${body}
 
 void main() {
@@ -401,10 +411,29 @@ const server = http.createServer((req, res) => {
   res.end("Not found");
 });
 
-server.listen(PORT, () => {
+let currentPort = PORT;
+
+function startServer(port) {
+  currentPort = port;
+  server.listen(port);
+}
+
+server.on("listening", () => {
   console.log("GLSL viewer: " + userPath);
-  console.log("Open http://127.0.0.1:" + PORT + " (edit file to hot-reload)");
+  console.log("Open http://127.0.0.1:" + currentPort + " (edit file to hot-reload)");
 });
+
+server.on("error", (err) => {
+  if (err && err.code === "EADDRINUSE") {
+    const nextPort = currentPort + 1;
+    console.warn("Port " + currentPort + " is busy, trying " + nextPort + "...");
+    startServer(nextPort);
+    return;
+  }
+  throw err;
+});
+
+startServer(PORT);
 
 const watcher = chokidar.watch(userPath, { ignoreInitial: true });
 watcher.on("all", () => {
